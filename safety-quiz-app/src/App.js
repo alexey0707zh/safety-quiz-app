@@ -555,6 +555,7 @@ const allQuestions = [
 
 ];
 
+
 const shuffleOptions = (options) => {
   const shuffled = [...options];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -565,14 +566,17 @@ const shuffleOptions = (options) => {
 };
 
 const QuizApp = () => {
+  const [page, setPage] = useState("intro");
   const [questions, setQuestions] = useState([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userInfo, setUserInfo] = useState({ name: "", position: "" });
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 минут (600 секунд)
+  const [timeLeft, setTimeLeft] = useState(600);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [errors, setErrors] = useState(0);
+  const [answered, setAnswered] = useState(false);
 
-  // Уменьшаем таймер каждую секунду, если он запущен
   useEffect(() => {
     let timer;
     if (timerRunning && timeLeft > 0) {
@@ -580,7 +584,7 @@ const QuizApp = () => {
         setTimeLeft((prevTime) => prevTime - 1);
       }, 1000);
     }
-    return () => clearInterval(timer); // Очищаем таймер при размонтировании
+    return () => clearInterval(timer);
   }, [timerRunning, timeLeft]);
 
   const startQuiz = () => {
@@ -589,57 +593,69 @@ const QuizApp = () => {
       return;
     }
     const shuffledQuestions = allQuestions
-      .sort(() => 0.5 - Math.random()) // Сортируем вопросы случайным образом
+      .sort(() => 0.5 - Math.random())
       .map((question) => {
-        const shuffledOptions = shuffleOptions(question.options); // Перемешиваем варианты для каждого вопроса
-        const correctIndex = shuffledOptions.indexOf(question.options[question.correct]); // Находим индекс правильного ответа в новом порядке
+        const shuffledOptions = shuffleOptions(question.options);
+        const correctIndex = shuffledOptions.indexOf(question.options[question.correct]);
         return {
           ...question,
           options: shuffledOptions,
-          correct: correctIndex // Обновляем индекс правильного ответа в новом порядке
+          correct: correctIndex
         };
       });
     setQuestions(shuffledQuestions.slice(0, 10));
     setAnswers({});
     setSubmitted(false);
-    setTimeLeft(600); // Сброс таймера
-    setTimerRunning(true); // Запуск таймера
+    setTimeLeft(600);
+    setTimerRunning(true);
+    setCurrentQuestionIndex(0);
+    setErrors(0);
+    setAnswered(false);
+    setPage("quiz");
   };
 
-  const handleAnswer = (questionId, optionIndex) => {
-    setAnswers({ ...answers, [questionId]: optionIndex });
+  const repeatQuiz = () => {
+    setPage("quiz");
+    startQuiz();
   };
 
-  const submitQuiz = () => {
-    setSubmitted(true);
+  const handleAnswer = (optionIndex) => {
+    setAnswers({ ...answers, [questions[currentQuestionIndex].id]: optionIndex });
+    setAnswered(true);
+  };
+
+  const checkAnswer = () => {
+    const currentQuestion = questions[currentQuestionIndex];
+    const isCorrect = answers[currentQuestion.id] === currentQuestion.correct;
+    if (!isCorrect) {
+      setErrors(errors + 1);
+      if (errors + 1 >= 3) {
+        setSubmitted(true);
+        return;
+      }
+    }
+  };
+
+  const nextQuestion = () => {
+    setAnswered(false);
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      setSubmitted(true);
+    }
   };
 
   const restartQuiz = () => {
     setQuestions([]);
     setUserInfo({ name: "", position: "" });
-    setAnswers({}); // Сбрасываем ответы
+    setAnswers({});
     setSubmitted(false);
     setTimeLeft(600);
-    setTimerRunning(false); // Останавливаем таймер
-  };
-
-  const repeatQuiz = () => {
-    const shuffledQuestions = allQuestions
-      .sort(() => 0.5 - Math.random()) // Сортируем вопросы случайным образом
-      .map((question) => {
-        const shuffledOptions = shuffleOptions(question.options); // Перемешиваем варианты для каждого вопроса
-        const correctIndex = shuffledOptions.indexOf(question.options[question.correct]); // Находим индекс правильного ответа в новом порядке
-        return {
-          ...question,
-          options: shuffledOptions,
-          correct: correctIndex // Обновляем индекс правильного ответа в новом порядке
-        };
-      });
-    setQuestions(shuffledQuestions.slice(0, 10));
-    setAnswers({}); // Сбрасываем ответы
-    setSubmitted(false);
-    setTimeLeft(600);
-    setTimerRunning(true); // Запуск таймера
+    setTimerRunning(false);
+    setCurrentQuestionIndex(0);
+    setErrors(0);
+    setAnswered(false);
+    setPage("intro");
   };
 
   const correctAnswersCount = Object.keys(answers).filter(
@@ -647,74 +663,76 @@ const QuizApp = () => {
   ).length;
   const passed = correctAnswersCount >= 8;
 
+  if (page === "intro") {
+    return (
+      <div>
+        <h1>Тест по охране труда</h1>
+        <p>Добро пожаловать в тест по охране труда. Общие правила:</p>
+         <p>Для сдачи теста нужно ответить на 10 вопросов. Допускается 2 ошибки.</p>
+<button onClick={() => setPage("userInfo")}>Далее</button>
+      </div>
+    );
+  }
+
+  if (page === "userInfo") {
+    return (
+      <div>
+        <h1>Введите данные</h1>
+        <input
+          type="text"
+          placeholder="Ф.И.О."
+          value={userInfo.name}
+          onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })}
+        />
+        <input
+          type="text"
+          placeholder="Должность"
+          value={userInfo.position}
+          onChange={(e) => setUserInfo({ ...userInfo, position: e.target.value })}
+        />
+        <button onClick={startQuiz}>Начать тест</button>
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1>Тест по охране труда</h1>
-      {!submitted && questions.length === 0 && (
+      {submitted ? (
         <div>
-          <input
-            type="text"
-            placeholder="Ф.И.О."
-            value={userInfo.name}
-            onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })}
-          />
-          <input
-            type="text"
-            placeholder="Должность"
-            value={userInfo.position}
-            onChange={(e) => setUserInfo({ ...userInfo, position: e.target.value })}
-          />
-          <button onClick={startQuiz}>Начать тест</button>
-        </div>
-      )}
-      
-      {/* Таймер отображается только при наличии вопросов */}
-      {questions.length > 0 && !submitted && (
-        <div>
-          <p>Оставшееся время: {Math.floor(timeLeft / 60)}:{timeLeft % 60}</p>
-        </div>
-      )}
-
-      {questions.map((q) => (
-        <div key={q.id}>
-          <p>{q.text}</p>
-          <ul>
-            {q.options.map((opt, index) => {
-              let style = {};
-              if (submitted) {
-                if (index === q.correct) {
-                  style = { color: "green" };
-                } else if (answers[q.id] === index) {
-                  style = { color: "red" };
-                }
-              }
-              return (
-                <li key={index} style={style}>
-                  <label>
-                    <input
-                      type="radio"
-                      name={`question-${q.id}`}
-                      value={index}
-                      onChange={() => handleAnswer(q.id, index)}
-                      checked={answers[q.id] === index} // Устанавливаем, если выбран ответ
-                      disabled={submitted} // Блокируем выбор после отправки
-                    />
-                    {opt}
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-      
-      {questions.length > 0 && !submitted && <button onClick={submitQuiz}>Завершить тест</button>}
-      
-      {submitted && (
-        <div>
-          <p>{passed ? "Тест сдан" : "Тест не сдан"}</p>
+          <p style={{ color: passed ? "green" : "red" }}>
+            {passed ? "Тест сдан" : "Тест не сдан"} ({correctAnswersCount}/10)
+          </p>
           <button onClick={repeatQuiz}>Пройти тест заново</button>
           <button onClick={restartQuiz}>Завершить тест</button>
+        </div>
+      ) : (
+        <div>
+          <p>Оставшееся время: {Math.floor(timeLeft / 60)}:{timeLeft % 60}</p>
+          <p>{questions[currentQuestionIndex].text}</p>
+          <ul>
+            {questions[currentQuestionIndex].options.map((opt, index) => (
+              <li key={index} style={
+                answered ?
+                (index === questions[currentQuestionIndex].correct ? { color: "green" } :
+                 answers[questions[currentQuestionIndex].id] === index ? { color: "red" } : {})
+                : {}}>
+                <label>
+                  <input
+                    type="radio"
+                    name={`question-${questions[currentQuestionIndex].id}`}
+                    value={index}
+                    onChange={() => handleAnswer(index)}
+                    checked={answers[questions[currentQuestionIndex].id] === index}
+                    disabled={answered}
+                  />
+                  {opt}
+                </label>
+              </li>
+            ))}
+          </ul>
+          {!answered && <button onClick={checkAnswer}>Ответить</button>}
+          {answered && <button onClick={nextQuestion}>Далее</button>}
         </div>
       )}
     </div>
